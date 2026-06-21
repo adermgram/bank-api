@@ -1,0 +1,34 @@
+from fastapi import FastAPI
+
+from app.api.auth import router as auth_router
+from app.core.config import settings
+from app.db.database import Base, engine
+
+from app.models.user import User  # noqa: F401
+
+
+app = FastAPI(title=settings.APP_NAME)
+
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+
+app.include_router(auth_router)
+
+
+@app.get("/")
+async def root():
+    return {
+        "message": "Banking API is running",
+        "docs": "/docs",
+    }
+
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+    }
