@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi import Depends
 
 from sqlalchemy import select
@@ -34,5 +34,28 @@ async def get_my_account(
     )
 
     account = result.scalar_one()
+
+    return account
+
+
+@router.get("/{account_number}",
+            response_model=AccountResponse)
+async def get_account_by_number(
+    account_number: str,
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Account).where(
+            Account.account_number == account_number
+        )
+    )
+
+    account = result.scalar_one_or_none()
+
+    if not account:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
 
     return account

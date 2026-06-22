@@ -6,6 +6,8 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Numeric
 from sqlalchemy import DateTime
 
+from decimal import Decimal
+
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -35,7 +37,7 @@ class Account(Base):
         nullable=False
     )
 
-    balance: Mapped[float] = mapped_column(
+    balance: Mapped[Decimal] = mapped_column(
         Numeric(15, 2),
         default=0
     )
