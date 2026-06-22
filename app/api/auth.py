@@ -10,6 +10,9 @@ from app.db.database import get_db
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 
+from app.models.account import Account
+from app.services.account_service import generate_account_number
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -75,7 +78,18 @@ async def register_user(
     )
 
     db.add(user)
+
+    await db.flush()
+
+    account = Account(
+        user_id=user.id,
+        account_number=generate_account_number()
+    )
+
+    db.add(account)
+
     await db.commit()
+
     await db.refresh(user)
 
     return user

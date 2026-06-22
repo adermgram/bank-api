@@ -5,7 +5,9 @@ from app.core.config import settings
 from app.db.database import Base, engine
 
 from app.models.user import User  # noqa: F401
+from app.models.account import Account
 
+from app.api.accounts import router as account_router
 
 app = FastAPI(title=settings.APP_NAME)
 
@@ -17,6 +19,7 @@ async def startup():
 
 
 app.include_router(auth_router)
+app.include_router(account_router)
 
 
 @app.get("/")
