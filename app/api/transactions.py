@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from decimal import Decimal
 from uuid import uuid4
+from typing import List
 
 from fastapi import Depends
 from fastapi import HTTPException
@@ -123,3 +124,37 @@ async def withdraw(
     await db.refresh(tx)
 
     return tx
+
+
+
+@router.get(
+    "/me",
+    response_model=list[TransactionResponse]
+)
+async def get_my_transactions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Account).where(
+            Account.user_id == current_user.id
+        )
+    )
+
+    account = result.scalar_one_or_none()
+
+    if account is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+
+    result = await db.execute(
+        select(Transaction)
+        .where(Transaction.account_id == account.id)
+        .order_by(Transaction.created_at.desc())
+    )
+
+    transactions = result.scalars().all()
+
+    return transactions
