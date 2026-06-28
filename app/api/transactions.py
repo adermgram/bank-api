@@ -15,37 +15,52 @@ from app.models.user import User
 from app.models.account import Account
 from app.models.transaction import Transaction
 
-from app.schemas.transaction import DepositRequest
+from fastapi import status
+
+from app.schemas.transaction import (
+    DepositRequest,
+    WithdrawRequest,
+    TransactionResponse
+)
 
 router = APIRouter(
     prefix="/transactions",
     tags=["Transactions"]
 )
 
-@router.post("/deposit")
+@router.post(
+    "/deposit",
+    response_model=TransactionResponse,
+    status_code=status.HTTP_201_CREATED
+)
 async def deposit(
     data: DepositRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(
-        select(Account).where(
-            Account.user_id == current_user.id
-        )
+        select(Account).where(Account.user_id == current_user.id)
     )
 
-    account = result.scalar_one()
+    account = result.scalar_one_or_none()
+
+    if account is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
 
     before = account.balance
+    after = before + data.amount
 
-    account.balance += data.amount
+    account.balance = after
 
     tx = Transaction(
         account_id=account.id,
         transaction_type="deposit",
         amount=data.amount,
         balance_before=before,
-        balance_after=account.balance,
+        balance_after=after,
         reference=str(uuid4()),
         description="Cash deposit"
     )
@@ -53,8 +68,58 @@ async def deposit(
     db.add(tx)
 
     await db.commit()
+    await db.refresh(tx)
 
-    return {
-        "message": "Deposit successful",
-        "new_balance": account.balance
-    }
+    return tx
+
+
+
+@router.post(
+    "/withdraw",
+    response_model=TransactionResponse,
+    status_code=status.HTTP_201_CREATED
+)
+async def withdraw(
+    data: WithdrawRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(
+        select(Account).where(Account.user_id == current_user.id)
+    )
+
+    account = result.scalar_one_or_none()
+
+    if account is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+
+    if account.balance < data.amount:
+        raise HTTPException(
+            status_code=400,
+            detail="Insufficient funds"
+        )
+
+    before = account.balance
+    after = before - data.amount
+
+    account.balance = after
+
+    tx = Transaction(
+        account_id=account.id,
+        transaction_type="withdrawal",
+        amount=data.amount,
+        balance_before=before,
+        balance_after=after,
+        reference=str(uuid4()),
+        description="Cash withdrawal"
+    )
+
+    db.add(tx)
+
+    await db.commit()
+    await db.refresh(tx)
+
+    return tx
