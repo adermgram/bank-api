@@ -1,22 +1,27 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.security import create_access_token, hash_password, verify_password
 from app.db.database import get_db
 from app.models.user import User
+from app.repositories.account_repository import AccountRepository
+from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
-
-from app.models.account import Account
-from app.services.account_service import generate_account_number
+from app.services.auth_service import AuthService
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
 bearer_scheme = HTTPBearer()
+
+
+def get_auth_service(
+    db: AsyncSession = Depends(get_db),
+) -> AuthService:
+    user_repo = UserRepository(db)
+    account_repo = AccountRepository(db)
+    return AuthService(user_repo, account_repo)
 
 
 async def get_current_user(
@@ -34,25 +39,16 @@ async def get_current_user(
         user_id = payload.get("sub")
 
         if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token",
-            )
+            raise HTTPException(status_code=401, detail="Invalid token")
 
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-        )
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
-    result = await db.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_id(user_id)
 
     if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
+        raise HTTPException(status_code=401, detail="User not found")
 
     return user
 
@@ -61,35 +57,15 @@ async def get_current_user(
 async def register_user(
     data: RegisterRequest,
     db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ):
-    result = await db.execute(select(User).where(User.email == data.email))
-    existing_user = result.scalar_one_or_none()
-
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
-    user = User(
+    user = await service.register(
         full_name=data.full_name,
         email=data.email,
-        hashed_password=hash_password(data.password),
+        password=data.password,
     )
-
-    db.add(user)
-
-    await db.flush()
-
-    account = Account(
-        user_id=user.id,
-        account_number=generate_account_number()
-    )
-
-    db.add(account)
 
     await db.commit()
-
     await db.refresh(user)
 
     return user
@@ -98,18 +74,12 @@ async def register_user(
 @router.post("/login", response_model=TokenResponse)
 async def login_user(
     data: LoginRequest,
-    db: AsyncSession = Depends(get_db),
+    service: AuthService = Depends(get_auth_service),
 ):
-    result = await db.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
-
-    if user is None or not verify_password(data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
-        )
-
-    token = create_access_token(subject=str(user.id))
+    token = await service.login(
+        email=data.email,
+        password=data.password,
+    )
 
     return TokenResponse(access_token=token)
 
