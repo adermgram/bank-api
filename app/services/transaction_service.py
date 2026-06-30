@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from fastapi import HTTPException
+from app.core.exceptions import AccountNotFoundError, InsufficientFundsError
 
 from app.models.transaction import Transaction
 from app.repositories.account_repository import AccountRepository
@@ -21,10 +21,7 @@ class TransactionService:
         account = await self.account_repo.get_by_user_id(user_id)
 
         if account is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Account not found"
-            )
+            raise AccountNotFoundError("Account not found")
 
         before = account.balance
         after = before + amount
@@ -49,16 +46,10 @@ class TransactionService:
         account = await self.account_repo.get_by_user_id(user_id)
 
         if account is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Account not found"
-            )
+            raise AccountNotFoundError("Account not found")
 
         if account.balance < amount:
-            raise HTTPException(
-                status_code=400,
-                detail="Insufficient funds"
-            )
+            raise InsufficientFundsError("Insufficient funds")
 
         before = account.balance
         after = before - amount
@@ -83,9 +74,6 @@ class TransactionService:
         account = await self.account_repo.get_by_user_id(user_id)
 
         if account is None:
-            raise HTTPException(
-                status_code=404,
-                detail="Account not found"
-            )
+            raise AccountNotFoundError("Account not found")
 
         return await self.transaction_repo.get_by_account_id(account.id)

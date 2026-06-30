@@ -1,4 +1,8 @@
-from fastapi import HTTPException, status
+from app.core.exceptions import (
+    InvalidCredentialsError,
+    UserAlreadyExistsError,
+    UserNotFoundError,
+)
 
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
@@ -21,10 +25,7 @@ class AuthService:
         existing_user = await self.user_repo.get_by_email(email)
 
         if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
-            )
+            raise UserAlreadyExistsError("Email already registered")
 
         user = User(
             full_name=full_name,
@@ -50,10 +51,7 @@ class AuthService:
         user = await self.user_repo.get_by_email(email)
 
         if user is None or not verify_password(password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-            )
+            raise InvalidCredentialsError("Invalid email or password")
 
         return create_access_token(subject=str(user.id))
 
