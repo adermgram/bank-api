@@ -13,6 +13,10 @@ from sqlalchemy.orm import mapped_column
 
 from app.db.database import Base
 
+from sqlalchemy import Enum as SqlEnum
+
+from app.enums.transaction import TransactionType
+
 
 class Transaction(Base):
     __tablename__ = "transactions"
@@ -28,8 +32,9 @@ class Transaction(Base):
         ForeignKey("accounts.id")
     )
 
-    transaction_type: Mapped[str] = mapped_column(
-        String(20)
+    transaction_type: Mapped[TransactionType] = mapped_column(
+        SqlEnum(TransactionType, name="transaction_type_enum"),
+        nullable=False,
     )
 
     amount: Mapped[float] = mapped_column(

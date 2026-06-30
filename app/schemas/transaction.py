@@ -1,8 +1,10 @@
 from decimal import Decimal
 from uuid import UUID
-from pydantic import BaseModel
-from pydantic import Field
 from datetime import datetime
+
+from pydantic import BaseModel, Field
+
+from app.enums.transaction import TransactionType
 
 
 class DepositRequest(BaseModel):
@@ -15,7 +17,7 @@ class WithdrawRequest(BaseModel):
 
 class TransactionResponse(BaseModel):
     id: UUID
-    transaction_type: str
+    transaction_type: TransactionType
     amount: Decimal
     balance_before: Decimal
     balance_after: Decimal

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-
+from sqlalchemy import Enum as SqlEnum
 from sqlalchemy import String
 from sqlalchemy import ForeignKey
 from sqlalchemy import Numeric
@@ -14,7 +14,7 @@ from sqlalchemy.orm import mapped_column
 from sqlalchemy.orm import relationship
 
 from app.db.database import Base
-
+from app.enums.account import AccountStatus, AccountType
 
 class Account(Base):
     __tablename__ = "accounts"
@@ -42,14 +42,16 @@ class Account(Base):
         default=0
     )
 
-    account_type: Mapped[str] = mapped_column(
-        String(20),
-        default="savings"
+    account_type: Mapped[AccountType] = mapped_column(
+        SqlEnum(AccountType, name="account_type_enum"),
+        default=AccountType.SAVINGS,
+        nullable=False,
     )
 
-    status: Mapped[str] = mapped_column(
-        String(20),
-        default="active"
+    status: Mapped[AccountStatus] = mapped_column(
+        SqlEnum(AccountStatus, name="account_status_enum"),
+        default=AccountStatus.ACTIVE,
+        nullable=False,
     )
 
     created_at: Mapped[datetime] = mapped_column(

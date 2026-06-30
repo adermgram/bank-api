@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from app.models.transaction import Transaction
 from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
+from app.enums.transaction import TransactionType
 
 
 class TransactionService:
@@ -32,7 +33,7 @@ class TransactionService:
 
         transaction = Transaction(
             account_id=account.id,
-            transaction_type="deposit",
+            transaction_type=TransactionType.DEPOSIT,
             amount=amount,
             balance_before=before,
             balance_after=after,
@@ -66,7 +67,7 @@ class TransactionService:
 
         transaction = Transaction(
             account_id=account.id,
-            transaction_type="withdrawal",
+            transaction_type=TransactionType.WITHDRAWAL,
             amount=amount,
             balance_before=before,
             balance_after=after,
