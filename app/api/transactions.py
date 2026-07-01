@@ -10,6 +10,7 @@ from app.schemas.transaction import (
     DepositRequest,
     WithdrawRequest,
     TransactionResponse,
+    TransferRequest
 )
 from app.services.transaction_service import TransactionService
 
@@ -85,3 +86,27 @@ async def get_my_transactions(
     service: TransactionService = Depends(get_transaction_service),
 ):
     return await service.get_user_transactions(current_user.id)
+
+
+@router.post(
+    "/transfer",
+    response_model=TransactionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def transfer(
+    data: TransferRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    service: TransactionService = Depends(get_transaction_service),
+):
+    transaction = await service.transfer(
+        user_id=current_user.id,
+        to_account_number=data.to_account_number,
+        amount=data.amount,
+        description=data.description,
+    )
+
+    await db.commit()
+    await db.refresh(transaction)
+
+    return transaction

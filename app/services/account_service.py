@@ -16,13 +16,15 @@ class AccountService:
     async def get_my_account(self, user_id):
         account = await self.account_repo.get_by_user_id(user_id)
 
-        raise AccountNotFoundError("Account not found")
+        if account is None:
+            raise AccountNotFoundError("Account not found")
 
         return account
 
     async def get_account_by_number(self, account_number: str):
         account = await self.account_repo.get_by_account_number(account_number)
 
-        raise AccountNotFoundError("Account not found")
+        if account is None:
+            raise AccountNotFoundError("Account not found")
 
         return account

@@ -77,3 +77,57 @@ class TransactionService:
             raise AccountNotFoundError("Account not found")
 
         return await self.transaction_repo.get_by_account_id(account.id)
+
+
+    async def transfer(self, user_id, to_account_number: str, amount, description: str):
+        sender = await self.account_repo.get_by_user_id(user_id)
+
+        if sender is None:
+            raise AccountNotFoundError("Sender account not found")
+
+        receiver = await self.account_repo.get_by_account_number(to_account_number)
+
+        if receiver is None:
+            raise AccountNotFoundError("Receiver account not found")
+
+        if sender.id == receiver.id:
+            raise InsufficientFundsError("You cannot transfer to your own account")
+
+        if sender.balance < amount:
+            raise InsufficientFundsError("Insufficient funds")
+
+        reference = f"TXN-{uuid4()}"
+
+        sender_before = sender.balance
+        sender_after = sender_before - amount
+
+        receiver_before = receiver.balance
+        receiver_after = receiver_before + amount
+
+        sender.balance = sender_after
+        receiver.balance = receiver_after
+
+        sender_tx = Transaction(
+            account_id=sender.id,
+            transaction_type=TransactionType.TRANSFER_OUT,
+            amount=amount,
+            balance_before=sender_before,
+            balance_after=sender_after,
+            reference=f"{reference}-OUT",
+            description=description,
+        )
+
+        receiver_tx = Transaction(
+            account_id=receiver.id,
+            transaction_type=TransactionType.TRANSFER_IN,
+            amount=amount,
+            balance_before=receiver_before,
+            balance_after=receiver_after,
+            reference=f"{reference}-IN",
+            description=description,
+        )
+
+        self.transaction_repo.add(sender_tx)
+        self.transaction_repo.add(receiver_tx)
+
+        return sender_tx

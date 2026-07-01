@@ -28,3 +28,11 @@ class TransactionResponse(BaseModel):
     model_config = {
         "from_attributes": True
     }
+
+
+class TransferRequest(BaseModel):
+    to_account_number: str
+    amount: Decimal = Field(gt=0)
+    description: str = "Transfer"
+
+    
