@@ -80,12 +80,12 @@ class TransactionService:
 
 
     async def transfer(self, user_id, to_account_number: str, amount, description: str):
-        sender = await self.account_repo.get_by_user_id(user_id)
+        sender = await self.account_repo.get_by_user_id_for_update(user_id)
 
         if sender is None:
             raise AccountNotFoundError("Sender account not found")
 
-        receiver = await self.account_repo.get_by_account_number(to_account_number)
+        receiver = await self.account_repo.get_by_account_number_for_update(to_account_number)
 
         if receiver is None:
             raise AccountNotFoundError("Receiver account not found")
