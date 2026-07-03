@@ -7,18 +7,15 @@ from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.enums.transaction import TransactionType
 
+from app.db.unit_of_work import UnitOfWork
+
 
 class TransactionService:
-    def __init__(
-        self,
-        account_repo: AccountRepository,
-        transaction_repo: TransactionRepository,
-    ):
-        self.account_repo = account_repo
-        self.transaction_repo = transaction_repo
+    def __init__(self, uow: UnitOfWork):
+        self.uow = uow
 
     async def deposit(self, user_id, amount):
-        account = await self.account_repo.get_by_user_id(user_id)
+        account = await self.uow.accounts.get_by_user_id(user_id)
 
         if account is None:
             raise AccountNotFoundError("Account not found")
@@ -38,12 +35,12 @@ class TransactionService:
             description="Cash deposit",
         )
 
-        self.transaction_repo.add(transaction)
+        self.uow.transactions.add(transaction)
 
         return transaction
 
     async def withdraw(self, user_id, amount):
-        account = await self.account_repo.get_by_user_id(user_id)
+        account = await self.uow.accounts.get_by_user_id(user_id)
 
         if account is None:
             raise AccountNotFoundError("Account not found")
@@ -66,26 +63,26 @@ class TransactionService:
             description="Cash withdrawal",
         )
 
-        self.transaction_repo.add(transaction)
+        self.uow.transactions.add(transaction)
 
         return transaction
 
     async def get_user_transactions(self, user_id):
-        account = await self.account_repo.get_by_user_id(user_id)
+        account = await self.uow.accounts.get_by_user_id(user_id)
 
         if account is None:
             raise AccountNotFoundError("Account not found")
 
-        return await self.transaction_repo.get_by_account_id(account.id)
+        return await self.uow.transactions.get_by_account_id(account.id)
 
 
     async def transfer(self, user_id, to_account_number: str, amount, description: str):
-        sender = await self.account_repo.get_by_user_id_for_update(user_id)
+        sender = await self.uow.accounts.get_by_user_id_for_update(user_id)
 
         if sender is None:
             raise AccountNotFoundError("Sender account not found")
 
-        receiver = await self.account_repo.get_by_account_number_for_update(to_account_number)
+        receiver = await self.uow.accounts.get_by_account_number_for_update(to_account_number)
 
         if receiver is None:
             raise AccountNotFoundError("Receiver account not found")
@@ -127,7 +124,7 @@ class TransactionService:
             description=description,
         )
 
-        self.transaction_repo.add(sender_tx)
-        self.transaction_repo.add(receiver_tx)
+        self.uow.transactions.add(sender_tx)
+        self.uow.transactions.add(receiver_tx)
 
         return sender_tx

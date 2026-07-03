@@ -11,17 +11,18 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserResponse
 from app.services.auth_service import AuthService
 
+from app.db.dependencies import get_uow
+from app.db.unit_of_work import UnitOfWork
+
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 bearer_scheme = HTTPBearer()
 
 
 def get_auth_service(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> AuthService:
-    user_repo = UserRepository(db)
-    account_repo = AccountRepository(db)
-    return AuthService(user_repo, account_repo)
+    return AuthService(uow)
 
 
 async def get_current_user(
@@ -56,7 +57,6 @@ async def get_current_user(
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register_user(
     data: RegisterRequest,
-    db: AsyncSession = Depends(get_db),
     service: AuthService = Depends(get_auth_service),
 ):
     user = await service.register(
@@ -65,8 +65,8 @@ async def register_user(
         password=data.password,
     )
 
-    await db.commit()
-    await db.refresh(user)
+    await service.uow.commit()
+    await service.uow.refresh(user)
 
     return user
 

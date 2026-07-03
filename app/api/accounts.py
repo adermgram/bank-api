@@ -8,6 +8,8 @@ from app.repositories.account_repository import AccountRepository
 from app.schemas.account import AccountResponse
 from app.services.account_service import AccountService
 
+from app.db.dependencies import get_uow
+from app.db.unit_of_work import UnitOfWork
 
 router = APIRouter(
     prefix="/accounts",
@@ -16,10 +18,9 @@ router = APIRouter(
 
 
 def get_account_service(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> AccountService:
-    account_repo = AccountRepository(db)
-    return AccountService(account_repo)
+    return AccountService(uow)
 
 
 @router.get("/me", response_model=AccountResponse)

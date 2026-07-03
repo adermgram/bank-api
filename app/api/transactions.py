@@ -1,11 +1,7 @@
 from fastapi import APIRouter, Depends, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.auth import get_current_user
-from app.db.database import get_db
 from app.models.user import User
-from app.repositories.account_repository import AccountRepository
-from app.repositories.transaction_repository import TransactionRepository
 from app.schemas.transaction import (
     DepositRequest,
     WithdrawRequest,
@@ -13,7 +9,8 @@ from app.schemas.transaction import (
     TransferRequest
 )
 from app.services.transaction_service import TransactionService
-
+from app.db.dependencies import get_uow
+from app.db.unit_of_work import UnitOfWork
 
 router = APIRouter(
     prefix="/transactions",
@@ -22,15 +19,9 @@ router = APIRouter(
 
 
 def get_transaction_service(
-    db: AsyncSession = Depends(get_db),
+    uow: UnitOfWork = Depends(get_uow),
 ) -> TransactionService:
-    account_repo = AccountRepository(db)
-    transaction_repo = TransactionRepository(db)
-
-    return TransactionService(
-        account_repo=account_repo,
-        transaction_repo=transaction_repo,
-    )
+    return TransactionService(uow)
 
 
 @router.post(
@@ -41,7 +32,6 @@ def get_transaction_service(
 async def deposit(
     data: DepositRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
     service: TransactionService = Depends(get_transaction_service),
 ):
     transaction = await service.deposit(
@@ -49,8 +39,8 @@ async def deposit(
         amount=data.amount,
     )
 
-    await db.commit()
-    await db.refresh(transaction)
+    await service.uow.commit()
+    await service.uow.refresh(transaction)
 
     return transaction
 
@@ -63,7 +53,6 @@ async def deposit(
 async def withdraw(
     data: WithdrawRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
     service: TransactionService = Depends(get_transaction_service),
 ):
     transaction = await service.withdraw(
@@ -71,8 +60,8 @@ async def withdraw(
         amount=data.amount,
     )
 
-    await db.commit()
-    await db.refresh(transaction)
+    await service.uow.commit()
+    await service.uow.refresh(transaction)
 
     return transaction
 
@@ -89,24 +78,21 @@ async def get_my_transactions(
 
 
 @router.post(
-    "/transfer",
+    "/withdraw",
     response_model=TransactionResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def transfer(
-    data: TransferRequest,
+async def withdraw(
+    data: WithdrawRequest,
     current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
     service: TransactionService = Depends(get_transaction_service),
 ):
-    transaction = await service.transfer(
+    transaction = await service.withdraw(
         user_id=current_user.id,
-        to_account_number=data.to_account_number,
         amount=data.amount,
-        description=data.description,
     )
 
-    await db.commit()
-    await db.refresh(transaction)
+    await service.uow.commit()
+    await service.uow.refresh(transaction)
 
     return transaction

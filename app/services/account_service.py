@@ -3,6 +3,7 @@ import random
 from app.core.exceptions import AccountNotFoundError
 
 from app.repositories.account_repository import AccountRepository
+from app.db.unit_of_work import UnitOfWork
 
 
 def generate_account_number() -> str:
@@ -10,11 +11,11 @@ def generate_account_number() -> str:
 
 
 class AccountService:
-    def __init__(self, account_repo: AccountRepository):
-        self.account_repo = account_repo
+    def __init__(self, uow: UnitOfWork):
+        self.uow = uow
 
     async def get_my_account(self, user_id):
-        account = await self.account_repo.get_by_user_id(user_id)
+        account = await self.uow.accounts.get_by_user_id(user_id)
 
         if account is None:
             raise AccountNotFoundError("Account not found")
@@ -22,7 +23,7 @@ class AccountService:
         return account
 
     async def get_account_by_number(self, account_number: str):
-        account = await self.account_repo.get_by_account_number(account_number)
+        account = await self.uow.accounts.get_by_account_number(account_number)
 
         if account is None:
             raise AccountNotFoundError("Account not found")
