@@ -7,6 +7,7 @@ from app.core.exceptions import (
     InvalidCredentialsError,
     UserAlreadyExistsError,
     UserNotFoundError,
+    DuplicateRequestError,
 )
 
 
@@ -45,9 +46,17 @@ async def insufficient_funds_handler(request: Request, exc: InsufficientFundsErr
     )
 
 
+async def duplicate_request_handler(request: Request, exc: DuplicateRequestError):
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": exc.message},
+    )
+
+
 def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(UserAlreadyExistsError, user_already_exists_handler)
     app.add_exception_handler(InvalidCredentialsError, invalid_credentials_handler)
     app.add_exception_handler(UserNotFoundError, user_not_found_handler)
     app.add_exception_handler(AccountNotFoundError, account_not_found_handler)
     app.add_exception_handler(InsufficientFundsError, insufficient_funds_handler)
+    app.add_exception_handler(DuplicateRequestError, duplicate_request_handler)

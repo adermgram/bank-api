@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Header
 
 from app.api.auth import get_current_user
 from app.models.user import User
@@ -90,6 +90,36 @@ async def withdraw(
     transaction = await service.withdraw(
         user_id=current_user.id,
         amount=data.amount,
+    )
+
+    await service.uow.commit()
+    await service.uow.refresh(transaction)
+
+    return transaction
+
+
+
+@router.post(
+    "/transfer",
+    response_model=TransactionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def transfer(
+    data: TransferRequest,
+    current_user: User = Depends(get_current_user),
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        description="Unique key to prevent duplicate transfers",
+    ),
+    service: TransactionService = Depends(get_transaction_service),
+):
+    transaction = await service.transfer(
+        user_id=current_user.id,
+        to_account_number=data.to_account_number,
+        amount=data.amount,
+        description=data.description,
+        idempotency_key=idempotency_key,
     )
 
     await service.uow.commit()

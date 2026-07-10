@@ -22,3 +22,6 @@ class AccountNotFoundError(AppError):
 
 class InsufficientFundsError(AppError):
     pass
+
+class DuplicateRequestError(AppError):
+    pass

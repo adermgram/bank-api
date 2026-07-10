@@ -1,8 +1,10 @@
+from decimal import Decimal
 from uuid import uuid4
 
-from app.core.exceptions import AccountNotFoundError, InsufficientFundsError
+from app.core.exceptions import AccountNotFoundError, InsufficientFundsError, DuplicateRequestError
 
 from app.models.transaction import Transaction
+from app.models.idempotency_key import IdempotencyKey
 from app.repositories.account_repository import AccountRepository
 from app.repositories.transaction_repository import TransactionRepository
 from app.enums.transaction import TransactionType
@@ -76,19 +78,38 @@ class TransactionService:
         return await self.uow.transactions.get_by_account_id(account.id)
 
 
-    async def transfer(self, user_id, to_account_number: str, amount, description: str):
+    async def transfer(
+        self,
+        user_id,
+        to_account_number: str,
+        amount: Decimal,
+        description: str,
+        idempotency_key: str,
+    ):
+        # Check idempotency
+        existing_request = await self.uow.idempotency.get(idempotency_key)
+
+        if existing_request:
+            raise DuplicateRequestError("Duplicate request")
+
+        # Lock sender
         sender = await self.uow.accounts.get_by_user_id_for_update(user_id)
 
         if sender is None:
             raise AccountNotFoundError("Sender account not found")
 
-        receiver = await self.uow.accounts.get_by_account_number_for_update(to_account_number)
+        # Lock receiver
+        receiver = await self.uow.accounts.get_by_account_number_for_update(
+            to_account_number
+        )
 
         if receiver is None:
             raise AccountNotFoundError("Receiver account not found")
 
         if sender.id == receiver.id:
-            raise InsufficientFundsError("You cannot transfer to your own account")
+            raise InsufficientFundsError(
+                "You cannot transfer to your own account"
+            )
 
         if sender.balance < amount:
             raise InsufficientFundsError("Insufficient funds")
@@ -96,20 +117,17 @@ class TransactionService:
         reference = f"TXN-{uuid4()}"
 
         sender_before = sender.balance
-        sender_after = sender_before - amount
-
         receiver_before = receiver.balance
-        receiver_after = receiver_before + amount
 
-        sender.balance = sender_after
-        receiver.balance = receiver_after
+        sender.balance -= amount
+        receiver.balance += amount
 
         sender_tx = Transaction(
             account_id=sender.id,
             transaction_type=TransactionType.TRANSFER_OUT,
             amount=amount,
             balance_before=sender_before,
-            balance_after=sender_after,
+            balance_after=sender.balance,
             reference=f"{reference}-OUT",
             description=description,
         )
@@ -119,12 +137,21 @@ class TransactionService:
             transaction_type=TransactionType.TRANSFER_IN,
             amount=amount,
             balance_before=receiver_before,
-            balance_after=receiver_after,
+            balance_after=receiver.balance,
             reference=f"{reference}-IN",
             description=description,
         )
 
         self.uow.transactions.add(sender_tx)
         self.uow.transactions.add(receiver_tx)
+
+        # Save idempotency record
+        self.uow.idempotency.add(
+            IdempotencyKey(
+                key=idempotency_key,
+                user_id=user_id,
+                endpoint="/transactions/transfer",
+            )
+        )
 
         return sender_tx
